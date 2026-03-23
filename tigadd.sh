@@ -75,10 +75,10 @@ Options (add):
   --force        Overwrite existing file
 
 Examples:
-  ./tigadd.sh add --type switch --name aruba-1930 --ip 192.168.1.10 \
+  ./tigadd.sh add --type switch --name aruba-1930 --ip 192.168.0.0 \
     --snmp-version v2c --community myCommunity
 
-  ./tigadd.sh add --type server-linux --name web-01 --ip 10.0.1.5 \
+  ./tigadd.sh add --type server-linux --name web-01 --ip 10.0.0.0 \
     --snmp-version v3 --sec-name monitor \
     --auth-pass "AuthPass123!" --priv-pass "PrivPass123!"
 
