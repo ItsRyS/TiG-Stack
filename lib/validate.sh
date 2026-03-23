@@ -18,7 +18,7 @@ validate() {
 
     # Device type enum
     case "$DEVICE_TYPE" in
-        switch|router|firewall|server-linux|server-windows|ups|envmonitor|"") ;;
+        switch|router|firewall|server-linux|server-windows|ups|envmonitor|esxi|"") ;;
         *) warn "Unknown --type '$DEVICE_TYPE'"; errors=$((errors+1)) ;;
     esac
 

@@ -32,6 +32,8 @@ source "${LIB}/oids/if_mib.sh"
 source "${LIB}/oids/host.sh"
 # shellcheck source=lib/oids/ups.sh
 source "${LIB}/oids/ups.sh"
+# shellcheck source=lib/oids/esxi.sh
+source "${LIB}/oids/esxi.sh"
 # shellcheck source=lib/gen.sh
 source "${LIB}/gen.sh"
 # shellcheck source=lib/cmd/add.sh
@@ -58,6 +60,7 @@ Device Types (add):
   server-windows               + HOST-RESOURCES-MIB
   ups                          UPS-MIB RFC 1628 (numeric OIDs)
   envmonitor                   HOST-RESOURCES-MIB
+  esxi              HOST-RESOURCES-MIB + IF-MIB + VMWARE-MIBs (numeric OIDs)
 
 SNMP v1/v2c:  --community <string>                    [default: public]
 SNMP v3:      --sec-name --auth-pass --priv-pass
@@ -72,10 +75,10 @@ Options (add):
   --force        Overwrite existing file
 
 Examples:
-  ./tigadd.sh add --type switch --name aruba-1930 --ip 192.168.1.10 \
+  ./tigadd.sh add --type switch --name aruba-1930 --ip 192.168.0.0 \
     --snmp-version v2c --community myCommunity
 
-  ./tigadd.sh add --type server-linux --name web-01 --ip 10.0.1.5 \
+  ./tigadd.sh add --type server-linux --name web-01 --ip 10.0.0.0 \
     --snmp-version v3 --sec-name monitor \
     --auth-pass "AuthPass123!" --priv-pass "PrivPass123!"
 
