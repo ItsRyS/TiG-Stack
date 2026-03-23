@@ -22,6 +22,7 @@ gen_config() {
         server-windows)         oids_if_mib; oids_host_resources ;;
         ups)                    oids_ups_mib ;;
         envmonitor)             oids_host_resources ;;
+        esxi)                   oids_esxi ;;
     esac
 }
 

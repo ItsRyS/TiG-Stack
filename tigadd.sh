@@ -32,6 +32,8 @@ source "${LIB}/oids/if_mib.sh"
 source "${LIB}/oids/host.sh"
 # shellcheck source=lib/oids/ups.sh
 source "${LIB}/oids/ups.sh"
+# shellcheck source=lib/oids/esxi.sh
+source "${LIB}/oids/esxi.sh"
 # shellcheck source=lib/gen.sh
 source "${LIB}/gen.sh"
 # shellcheck source=lib/cmd/add.sh
@@ -58,6 +60,7 @@ Device Types (add):
   server-windows               + HOST-RESOURCES-MIB
   ups                          UPS-MIB RFC 1628 (numeric OIDs)
   envmonitor                   HOST-RESOURCES-MIB
+  esxi              HOST-RESOURCES-MIB + IF-MIB + VMWARE-MIBs (numeric OIDs)
 
 SNMP v1/v2c:  --community <string>                    [default: public]
 SNMP v3:      --sec-name --auth-pass --priv-pass
