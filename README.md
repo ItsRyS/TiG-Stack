@@ -1,47 +1,197 @@
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/N4N41E59SA)
 
-# TIG Stack – Monitoring System with Telegraf, InfluxDB, and Grafana
+# TiG Stack — Telegraf · InfluxDB · Grafana
 
-This repository provides an automated setup for deploying a TIG Stack—**Telegraf**, **InfluxDB**, and **Grafana**—using **Docker** and **Docker Compose**. It's designed to help you quickly build a modern, efficient monitoring system for collecting, storing, and visualizing time-series data.
+Automated deployment of a production-ready monitoring stack using **Docker** and **Docker Compose**.  
+Collect, store, and visualize time-series metrics from servers, network devices, and UPS units — with a single setup script.
 
 ---
 
 ## What's Included
 
-- **Telegraf** – Agent for collecting and reporting system and application metrics  
-- **InfluxDB** – High-performance time-series database for storing metrics  
-- **Grafana** – Powerful visualization and dashboard platform  
-- **Setup Script (`tig-setup.sh`)** – Automatically installs the latest versions of Docker and Docker Compose, then sets up the entire TIG stack
+| Component | Role |
+|---|---|
+| **Telegraf** | Metrics collection agent (host, SNMP, custom inputs) |
+| **InfluxDB** | High-performance time-series database |
+| **Grafana** | Visualization and alerting platform |
+| **`tig-setup.sh`** | One-command installer for the entire stack |
+| **`tigadd.sh`** | CLI tool to add and manage SNMP-monitored devices |
 
-The setup also generates the following environment files to securely store credentials and tokens:
+---
 
-- `.env.influxdb-admin-username`  
-- `.env.influxdb-admin-password`  
-- `.env.influxdb-admin-token`
+## Supported OS
+
+- AlmaLinux / Rocky Linux / RHEL / CentOS
+- Ubuntu / Debian
+- Fedora / Oracle Linux
+- OpenSUSE / SLES
 
 ---
 
 ## Getting Started
-### 1. Clone repository
+
+### 1. Clone the repository
 
 ```bash
-git clone https://github.com/R2Dino/tig-stack.git
+git clone https://github.com/AskMe-CMI/TiG-Stack.git
+cd tig-stack
 ```
-### 2. Make the setup script executable:
+
+### 2. Run the setup script
 
 ```bash
 chmod +x tig-setup.sh
+sudo ./tig-setup.sh
 ```
 
-### 3. Execute script
+The script will:
+- Install Docker and Docker Compose (if not already installed)
+- Prompt for InfluxDB credentials, org, and bucket name
+- Generate all config files automatically
+- Install SNMP MIBs for network device monitoring
+- Pull and start all containers
+- Open firewall ports 3000 and 8086
+
+### 3. Access the services
+
+| Service | URL | Default Credentials |
+|---|---|---|
+| Grafana | `http://<your-ip>:3000` | admin / admin |
+| InfluxDB | `http://<your-ip>:8086` | set during setup |
+
+> **Change the Grafana password** on first login: Profile → Change Password
+
+---
+
+## Adding SNMP Devices
+
+Use `tigadd.sh` to add network devices, servers, and UPS units to monitoring.
+
+### Supported device types
+
+| Type | MIBs Used |
+|---|---|
+| `switch` / `router` / `firewall` | SNMPv2-MIB, IF-MIB |
+| `server-linux` | HOST-RESOURCES-MIB, UCD-SNMP-MIB |
+| `server-windows` | HOST-RESOURCES-MIB |
+| `ups` | UPS-MIB RFC 1628 |
+| `envmonitor` | HOST-RESOURCES-MIB |
+
+### Commands
+
 ```bash
-./tig-setup.sh
+# Add a device
+./tigadd.sh add --type switch --name core-sw-01 --ip 192.168.1.1 \
+  --snmp-version v2c --community public
+
+# Add with SNMPv3
+./tigadd.sh add --type server-linux --name web-srv-01 --ip 10.0.1.5 \
+  --snmp-version v3 --sec-name monitor \
+  --auth-pass "AuthPass123!" --priv-pass "PrivPass123!"
+
+# Add a UPS
+./tigadd.sh add --type ups --name ups-dc01 --ip 10.0.0.200 \
+  --snmp-version v1 --community public
+
+# Preview config without writing (dry-run)
+./tigadd.sh add --type switch --name core-sw-01 --ip 192.168.1.1 \
+  --snmp-version v2c --community public --dry-run
+
+# List all monitored devices with live status
+./tigadd.sh list
 ```
-### 4. Change Default Password of Grafana
-Open web browser and connect to grafana via port 3000
 
-Example: https://localhost:3000
+### `tigadd list` output example
 
-Default user: admin
+```
+NAME                  TYPE             IP                SNMP   STATUS
+──────────────────────────────────────────────────────────────────────
+aruba-1xxx            switch           192.168.1.10      v2c    ● Active (42s ago)
+ups-dc01              ups              10.0.0.200        v1     ● Active (1m ago)
+web-srv-01            server-linux     10.0.1.5          v3     ✗ No data (>5m)
+```
 
-Default password: admin
+### Adding vendor MIBs (optional)
+
+Place vendor-specific `.mib` files in the `./mibs/` directory — they are automatically mounted into the Telegraf container.
+
+```bash
+cp YOUR_VENDOR.mib ./mibs/
+docker compose restart telegraf
+```
+
+---
+
+## Project Structure
+
+```
+TiG-Stack/
+├── tig-setup.sh                    # Main installer
+├── tigadd.sh                       # Device management CLI
+├── docker-compose.yml              # Generated by tig-setup.sh
+├── README.md
+├── .env.influxdb-admin-username    # Generated — do not commit
+├── .env.influxdb-admin-password    # Generated — do not commit
+├── .env.influxdb-admin-token       # Generated — do not commit
+│
+├── mibs/                           # Vendor MIB files (optional)
+│
+├── telegraf-config/
+│   ├── telegraf.conf               # Generated by tig-setup.sh
+│   └── telegraf.d/
+│       ├── 000-influxdb.conf       # InfluxDB output config
+│       ├── 100-inputs.conf         # Host metrics (cpu, mem, disk, net)
+│       ├── 101-snmp-<name>.conf    # SNMP device (generated by tigadd)
+│       └── 102-snmp-<name>.conf    # SNMP device (generated by tigadd)
+│
+├── influxdb/
+│   ├── data/                       # InfluxDB data volume
+│   └── config/                     # InfluxDB config volume
+│
+└── lib/                            # tigadd.sh internal modules
+    ├── common.sh                   # Shared helpers, log, defaults
+    ├── validate.sh                 # Input validation
+    ├── agent.sh                    # SNMP agent block builder
+    ├── gen.sh                      # Config assembly + file numbering
+    ├── cmd/
+    │   ├── add.sh                  # "tigadd add" command
+    │   └── list.sh                 # "tigadd list" command
+    └── oids/
+        ├── system.sh               # SNMPv2-MIB system info
+        ├── if_mib.sh               # IF-MIB interface stats
+        ├── host.sh                 # HOST-RESOURCES-MIB + UCD-SNMP-MIB
+        └── ups.sh                  # UPS-MIB RFC 1628
+```
+
+---
+
+## Credential Files
+
+Generated automatically by `tig-setup.sh` — **do not commit these to git**.  
+Add them to `.gitignore` if not already there:
+
+```bash
+echo ".env.influxdb-*" >> .gitignore
+```
+
+---
+
+## Useful Commands
+
+```bash
+# View running containers
+docker compose ps
+
+# View logs
+docker compose logs telegraf --tail=50 -f
+docker compose logs influxdb --tail=50
+
+# Restart a service
+docker compose restart telegraf
+
+# Stop everything
+docker compose down
+
+# Stop and remove all data (full reset)
+docker compose down -v --remove-orphans
+```
