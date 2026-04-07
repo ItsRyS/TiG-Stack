@@ -121,23 +121,39 @@ cmd_list() {
         return
     fi
 
-    local influx_ok="true"
     if [ -z "$INFLUX_TOKEN" ]; then
-        influx_ok="false"
         warn "InfluxDB token not found — status shows '? Unknown'"
         warn "Tip: run from TiG-Stack directory (where .env.influxdb-admin-token exists)"
     fi
 
+    # ── Phase 1: Parse all configs (sequential, no network I/O) ─────────────
+    local -a p_names p_types p_ips p_vers
+    for f in "${files[@]}"; do
+        _parse_conf "$f"
+        p_names+=("$PARSED_NAME")
+        p_types+=("$PARSED_TYPE")
+        p_ips+=("$PARSED_IP")
+        p_vers+=("$PARSED_SNMP_VER")
+    done
+
+    # ── Phase 2: Launch all InfluxDB status checks in parallel ───────────────
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local i
+    for i in "${!p_names[@]}"; do
+        ( _check_influx_status "${p_names[$i]}" > "$tmp_dir/$i" ) &
+    done
+    wait   # block until every background curl is done
+
+    # ── Phase 3: Print results in original order ──────────────────────────────
     printf '\n'
     printf '\033[1m%-20s  %-15s  %-16s  %-5s  %s\033[0m\n' \
         "NAME" "TYPE" "IP" "SNMP" "STATUS"
     printf '%s\n' "──────────────────────────────────────────────────────────────────"
 
     local total=0 active=0 nodata=0 unknown=0 status
-
-    for f in "${files[@]}"; do
-        _parse_conf "$f"
-        status=$(_check_influx_status "$PARSED_NAME")
+    for i in "${!p_names[@]}"; do
+        status=$(cat "$tmp_dir/$i" 2>/dev/null || echo "? Unknown")
 
         total=$((total+1))
         case "$status" in
@@ -147,10 +163,12 @@ cmd_list() {
         esac
 
         printf '%-20s  %-15s  %-16s  %-5s  ' \
-            "$PARSED_NAME" "$PARSED_TYPE" "$PARSED_IP" "$PARSED_SNMP_VER"
+            "${p_names[$i]}" "${p_types[$i]}" "${p_ips[$i]}" "${p_vers[$i]}"
         _colour_status "$status"
         printf '\n'
     done
+
+    rm -rf "$tmp_dir"
 
     printf '%s\n' "──────────────────────────────────────────────────────────────────"
     printf 'Total: %s  ' "$total"

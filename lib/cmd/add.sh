@@ -14,20 +14,20 @@ cmd_add() {
         return
     fi
 
-    local safe_name outfile
+    local safe_name existing outfile
     safe_name=$(echo "$DEVICE_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
-    outfile="${OUTPUT_DIR}/$(next_file_number "$OUTPUT_DIR")-snmp-${safe_name}.conf"
 
-    # --force: find and overwrite existing file with same device name
-    if [ "$FORCE" = "true" ]; then
-        local existing
-        existing=$(find "$OUTPUT_DIR" -name "[0-9][0-9][0-9]-snmp-${safe_name}.conf" \
-            2>/dev/null | head -1)
-        if [ -n "$existing" ]; then outfile="$existing"; fi
+    existing=$(find "$OUTPUT_DIR" -maxdepth 1 -name "[0-9][0-9][0-9]-snmp-${safe_name}.conf" \
+        2>/dev/null | head -1)
+
+    if [ -n "$existing" ] && [ "$FORCE" != "true" ]; then
+        die "Device '${DEVICE_NAME}' already exists: $existing — use --force to overwrite."
     fi
 
-    if [ -f "$outfile" ] && [ "$FORCE" != "true" ]; then
-        die "File exists: $outfile — use --force to overwrite."
+    if [ -n "$existing" ] && [ "$FORCE" = "true" ]; then
+        outfile="$existing"
+    else
+        outfile="${OUTPUT_DIR}/$(next_file_number "$OUTPUT_DIR")-snmp-${safe_name}.conf"
     fi
 
     mkdir -p "$OUTPUT_DIR"
@@ -38,7 +38,9 @@ cmd_add() {
     log "Device  : $DEVICE_NAME ($DEVICE_TYPE)"
     log "Target  : ${DEVICE_IP}:${SNMP_PORT}  (SNMP ${SNMP_VERSION})"
     log "Interval: ${POLL_INTERVAL}"
-    printf '\n'; _yellow "Next steps:"
-    printf '  docker compose restart telegraf\n'
+
+    _telegraf_reload
+
+    printf '\n'; _yellow "Check logs:"
     printf '  docker compose logs telegraf --tail=50 -f\n\n'
 }

@@ -29,9 +29,10 @@ validate() {
            errors=$((errors+1)) ;;
     esac
 
-    # IP format
+    # IP format and range (each octet must be 0-255)
     if [ -n "$DEVICE_IP" ]; then
-        if ! echo "$DEVICE_IP" | grep -qE '^([0-9]{1,3}\.){3}[0-9]{1,3}$'; then
+        local _octet='(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])'
+        if ! echo "$DEVICE_IP" | grep -qE "^(${_octet}\.){3}${_octet}$"; then
             warn "Invalid IP: '$DEVICE_IP'"
             errors=$((errors+1))
         fi

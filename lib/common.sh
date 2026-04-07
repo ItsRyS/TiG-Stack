@@ -23,6 +23,40 @@ COMMUNITY="public"
 SEC_NAME="" AUTH_PROTO="SHA256" AUTH_PASS=""
 PRIV_PROTO="AES256" PRIV_PASS="" SEC_LEVEL="authPriv"
 
+# ── Edit override tracking ────────────────────────────────────────────────
+# Tracks which flags were explicitly set by the user (used by cmd_edit)
+_EDIT_OVERRIDES=""
+
+# ── Telegraf reload ───────────────────────────────────────────────────────
+NO_RELOAD="false"
+
+_telegraf_reload() {
+    if [ "$NO_RELOAD" = "true" ]; then return; fi
+
+    # Must be in a directory with docker-compose.yml
+    if [ ! -f "docker-compose.yml" ]; then
+        _yellow "Tip: run 'docker compose restart telegraf' to apply changes."
+        return
+    fi
+
+    # Check telegraf container is actually running
+    local state
+    state=$(docker compose ps --format '{{.Name}} {{.State}}' 2>/dev/null \
+        | grep telegraf | awk '{print $2}') || true
+
+    if [ "$state" != "running" ]; then
+        _yellow "Telegraf is not running — skipping reload."
+        return
+    fi
+
+    printf '\n'; log "Reloading Telegraf..."
+    if docker compose restart telegraf >/dev/null 2>&1; then
+        _green "✔ Telegraf reloaded."
+    else
+        warn "Reload failed — run manually: docker compose restart telegraf"
+    fi
+}
+
 # ── InfluxDB connection (auto-detect from TiG-Stack files) ────────────────
 INFLUX_URL="http://localhost:8086"
 INFLUX_TOKEN=""

@@ -40,6 +40,10 @@ source "${LIB}/gen.sh"
 source "${LIB}/cmd/add.sh"
 # shellcheck source=lib/cmd/list.sh
 source "${LIB}/cmd/list.sh"
+# shellcheck source=lib/cmd/remove.sh
+source "${LIB}/cmd/remove.sh"
+# shellcheck source=lib/cmd/edit.sh
+source "${LIB}/cmd/edit.sh"
 
 # ── Usage ─────────────────────────────────────────────────────────────────
 usage_main() {
@@ -48,11 +52,15 @@ usage_main() {
 
 Commands:
   add     Add a new SNMP device (default if no command specified)
+  edit    Update an existing device (only pass flags you want to change)
+  remove  Remove a monitored device by name
   list    List all monitored devices with InfluxDB status
 
 Usage:
-  ./tigadd.sh add  --type <type> --name <n> --ip <ip> --snmp-version <ver> [options]
-  ./tigadd.sh list [--output-dir <path>]
+  ./tigadd.sh add    --type <type> --name <n> --ip <ip> --snmp-version <ver> [options]
+  ./tigadd.sh edit   --name <n> [--ip <ip>] [--community <s>] [--interval <s>] ...
+  ./tigadd.sh remove --name <n> [--output-dir <path>] [--force] [--no-reload]
+  ./tigadd.sh list   [--output-dir <path>]
 
 Device Types (add):
   switch / router / firewall   SNMPv2-MIB + IF-MIB
@@ -72,7 +80,8 @@ Options (add):
   --port / --timeout / --retries / --interval
   --output-dir   [default: ./telegraf-config/telegraf.d]
   --dry-run      Preview config only, do not write file
-  --force        Overwrite existing file
+  --force        Overwrite existing file (add) / skip confirmation (remove)
+  --no-reload    Skip automatic 'docker compose restart telegraf'
 
 Examples:
   ./tigadd.sh add --type switch --name aruba-1930 --ip 192.168.0.0 \
@@ -81,6 +90,12 @@ Examples:
   ./tigadd.sh add --type server-linux --name web-01 --ip 10.0.0.0 \
     --snmp-version v3 --sec-name monitor \
     --auth-pass "AuthPass123!" --priv-pass "PrivPass123!"
+
+  ./tigadd.sh edit --name aruba-1930 --ip 10.0.0.5
+
+  ./tigadd.sh edit --name web-01 --auth-pass "NewPass456!" --priv-pass "NewPriv456!"
+
+  ./tigadd.sh remove --name aruba-1930
 
   ./tigadd.sh list
 
@@ -98,33 +113,34 @@ main() {
     # Determine command
     local cmd="add"   # default
     case "$1" in
-        add|list)  cmd="$1"; shift ;;
-        -h|--help) usage_main ;;
-        --*)       cmd="add" ;;   # no command → treat all args as "add"
-        *)         die "Unknown command: '$1'. Valid: add, list  (use --help)" ;;
+        add|list|remove|edit)  cmd="$1"; shift ;;
+        -h|--help)             usage_main ;;
+        --*)                   cmd="add" ;;   # no command → treat all args as "add"
+        *)                     die "Unknown command: '$1'. Valid: add, edit, remove, list  (use --help)" ;;
     esac
 
     # Parse remaining flags
     while [ $# -gt 0 ]; do
         case "$1" in
-            --type)         DEVICE_TYPE=$(echo "$2"  | tr '[:upper:]' '[:lower:]'); shift 2 ;;
-            --name)         DEVICE_NAME="$2";                                        shift 2 ;;
-            --ip)           DEVICE_IP="$2";                                          shift 2 ;;
-            --snmp-version) SNMP_VERSION=$(echo "$2" | tr '[:upper:]' '[:lower:]'); shift 2 ;;
-            --port)         SNMP_PORT="$2";                                          shift 2 ;;
-            --timeout)      SNMP_TIMEOUT="$2";                                       shift 2 ;;
-            --retries)      SNMP_RETRIES="$2";                                       shift 2 ;;
-            --interval)     POLL_INTERVAL="$2";                                      shift 2 ;;
-            --output-dir)   OUTPUT_DIR="$2";                                         shift 2 ;;
-            --community)    COMMUNITY="$2";                                          shift 2 ;;
-            --sec-name)     SEC_NAME="$2";                                           shift 2 ;;
-            --auth-proto)   AUTH_PROTO=$(echo "$2" | tr '[:lower:]' '[:upper:]');   shift 2 ;;
-            --auth-pass)    AUTH_PASS="$2";                                          shift 2 ;;
-            --priv-proto)   PRIV_PROTO=$(echo "$2" | tr '[:lower:]' '[:upper:]');   shift 2 ;;
-            --priv-pass)    PRIV_PASS="$2";                                          shift 2 ;;
-            --sec-level)    SEC_LEVEL="$2";                                          shift 2 ;;
-            --dry-run)      DRY_RUN="true";                                          shift   ;;
-            --force)        FORCE="true";                                             shift   ;;
+            --type)         DEVICE_TYPE=$(echo "$2"  | tr '[:upper:]' '[:lower:]'); _EDIT_OVERRIDES+=" type";        shift 2 ;;
+            --name)         DEVICE_NAME="$2";                                                                          shift 2 ;;
+            --ip)           DEVICE_IP="$2";                                          _EDIT_OVERRIDES+=" ip";           shift 2 ;;
+            --snmp-version) SNMP_VERSION=$(echo "$2" | tr '[:upper:]' '[:lower:]'); _EDIT_OVERRIDES+=" snmp-version"; shift 2 ;;
+            --port)         SNMP_PORT="$2";                                          _EDIT_OVERRIDES+=" port";         shift 2 ;;
+            --timeout)      SNMP_TIMEOUT="$2";                                       _EDIT_OVERRIDES+=" timeout";      shift 2 ;;
+            --retries)      SNMP_RETRIES="$2";                                       _EDIT_OVERRIDES+=" retries";      shift 2 ;;
+            --interval)     POLL_INTERVAL="$2";                                      _EDIT_OVERRIDES+=" interval";     shift 2 ;;
+            --output-dir)   OUTPUT_DIR="$2";                                                                           shift 2 ;;
+            --community)    COMMUNITY="$2";                                          _EDIT_OVERRIDES+=" community";    shift 2 ;;
+            --sec-name)     SEC_NAME="$2";                                           _EDIT_OVERRIDES+=" sec-name";     shift 2 ;;
+            --auth-proto)   AUTH_PROTO=$(echo "$2" | tr '[:lower:]' '[:upper:]');   _EDIT_OVERRIDES+=" auth-proto";   shift 2 ;;
+            --auth-pass)    AUTH_PASS="$2";                                          _EDIT_OVERRIDES+=" auth-pass";    shift 2 ;;
+            --priv-proto)   PRIV_PROTO=$(echo "$2" | tr '[:lower:]' '[:upper:]');   _EDIT_OVERRIDES+=" priv-proto";   shift 2 ;;
+            --priv-pass)    PRIV_PASS="$2";                                          _EDIT_OVERRIDES+=" priv-pass";    shift 2 ;;
+            --sec-level)    SEC_LEVEL="$2";                                          _EDIT_OVERRIDES+=" sec-level";    shift 2 ;;
+            --dry-run)      DRY_RUN="true";                                                                            shift   ;;
+            --force)        FORCE="true";                                                                               shift   ;;
+            --no-reload)    NO_RELOAD="true";                                                                           shift   ;;
             -h|--help)      usage_main ;;
             *) die "Unknown flag: $1  (use --help)" ;;
         esac
@@ -132,8 +148,10 @@ main() {
 
     # Route to command
     case "$cmd" in
-        add)  cmd_add  ;;
-        list) cmd_list ;;
+        add)    cmd_add    ;;
+        edit)   cmd_edit   ;;
+        remove) cmd_remove ;;
+        list)   cmd_list   ;;
     esac
 }
 

@@ -72,10 +72,11 @@ Use `tigadd.sh` to add network devices, servers, and UPS units to monitoring.
 | Type | MIBs Used |
 |---|---|
 | `switch` / `router` / `firewall` | SNMPv2-MIB, IF-MIB |
-| `server-linux` | HOST-RESOURCES-MIB, UCD-SNMP-MIB |
-| `server-windows` | HOST-RESOURCES-MIB |
+| `server-linux` | HOST-RESOURCES-MIB, UCD-SNMP-MIB, IF-MIB |
+| `server-windows` | HOST-RESOURCES-MIB, IF-MIB |
 | `ups` | UPS-MIB RFC 1628 |
 | `envmonitor` | HOST-RESOURCES-MIB |
+| `esxi` | HOST-RESOURCES-MIB, IF-MIB, VMware MIBs (numeric OIDs) |
 
 ### Commands
 
@@ -93,13 +94,28 @@ Use `tigadd.sh` to add network devices, servers, and UPS units to monitoring.
 ./tigadd.sh add --type ups --name ups-dc01 --ip 10.0.0.200 \
   --snmp-version v1 --community public
 
+# Add VMware ESXi host
+./tigadd.sh add --type esxi --name esxi-01 --ip 10.0.0.10 \
+  --snmp-version v2c --community public
+
 # Preview config without writing (dry-run)
 ./tigadd.sh add --type switch --name core-sw-01 --ip 192.168.1.1 \
   --snmp-version v2c --community public --dry-run
 
+# Edit an existing device (only pass what you want to change)
+./tigadd.sh edit --name core-sw-01 --ip 192.168.1.2
+./tigadd.sh edit --name web-srv-01 --auth-pass "NewPass!" --priv-pass "NewPriv!"
+./tigadd.sh edit --name core-sw-01 --interval 30s
+
+# Remove a device
+./tigadd.sh remove --name core-sw-01          # prompts for confirmation
+./tigadd.sh remove --name core-sw-01 --force  # skip confirmation
+
 # List all monitored devices with live status
 ./tigadd.sh list
 ```
+
+> Add `--no-reload` to any command to skip the automatic `docker compose restart telegraf`.
 
 ### `tigadd list` output example
 
@@ -155,12 +171,15 @@ TiG-Stack/
     ├── gen.sh                      # Config assembly + file numbering
     ├── cmd/
     │   ├── add.sh                  # "tigadd add" command
+    │   ├── edit.sh                 # "tigadd edit" command
+    │   ├── remove.sh               # "tigadd remove" command
     │   └── list.sh                 # "tigadd list" command
     └── oids/
         ├── system.sh               # SNMPv2-MIB system info
         ├── if_mib.sh               # IF-MIB interface stats
         ├── host.sh                 # HOST-RESOURCES-MIB + UCD-SNMP-MIB
-        └── ups.sh                  # UPS-MIB RFC 1628
+        ├── ups.sh                  # UPS-MIB RFC 1628
+        └── esxi.sh                 # VMware ESXi MIBs (numeric OIDs)
 ```
 
 ---
