@@ -26,7 +26,7 @@ _check_influx_status() {
     fi
 
     # Single query: get last data point within 5m
-    local flux_query result last_ts
+    local flux_query result last_ts curl_exit
     flux_query="from(bucket: \"${INFLUX_BUCKET}\")
   |> range(start: -5m)
   |> filter(fn: (r) => r.device_name == \"${device_name}\")
@@ -34,11 +34,22 @@ _check_influx_status() {
   |> keep(columns: [\"_time\"])
   |> limit(n: 1)"
 
+    curl_exit=0
     result=$(curl -sf --max-time 5 \
         -H "Authorization: Token ${INFLUX_TOKEN}" \
         -H "Content-Type: application/vnd.flux" \
         "${INFLUX_URL}/api/v2/query?org=${INFLUX_ORG}" \
-        --data-raw "$flux_query" 2>/dev/null) || true
+        --data-raw "$flux_query" 2>/dev/null) || curl_exit=$?
+
+    if [ "$curl_exit" -ne 0 ]; then
+        case "$curl_exit" in
+            6|7)  echo "✗ Unreachable" ;;
+            22)   echo "✗ Auth error"  ;;
+            28)   echo "✗ Timeout"     ;;
+            *)    echo "✗ curl err $curl_exit" ;;
+        esac
+        return
+    fi
 
     # Extract timestamp from CSV result (skip comment/header lines)
     last_ts=$(echo "$result" | grep -v '^#\|^,result\|^$\|_time' | \
@@ -101,9 +112,10 @@ _check_influx_status() {
 _colour_status() {
     local s="$1"
     case "$s" in
-        "● Active"*)  printf '\033[0;32m%-20s\033[0m' "$s" ;;
-        "✗ No data"*) printf '\033[0;33m%-20s\033[0m' "$s" ;;
-        *)            printf '\033[0;90m%-20s\033[0m' "$s" ;;
+        "● Active"*)   printf '\033[0;32m%-20s\033[0m' "$s" ;;
+        "✗ No data"*)  printf '\033[0;33m%-20s\033[0m' "$s" ;;
+        "✗ "*        ) printf '\033[0;31m%-20s\033[0m' "$s" ;;
+        *)             printf '\033[0;90m%-20s\033[0m' "$s" ;;
     esac
 }
 
@@ -152,15 +164,16 @@ cmd_list() {
         "NAME" "TYPE" "IP" "SNMP" "STATUS"
     printf '%s\n' "──────────────────────────────────────────────────────────────────"
 
-    local total=0 active=0 nodata=0 unknown=0 status
+    local total=0 active=0 nodata=0 error=0 unknown=0 status
     for i in "${!p_names[@]}"; do
         status=$(cat "$tmp_dir/$i" 2>/dev/null || echo "? Unknown")
 
         total=$((total+1))
         case "$status" in
-            "● Active"*)  active=$((active+1))  ;;
-            "✗ No data"*) nodata=$((nodata+1))  ;;
-            *)            unknown=$((unknown+1)) ;;
+            "● Active"*)   active=$((active+1))  ;;
+            "✗ No data"*)  nodata=$((nodata+1))  ;;
+            "✗ "*        ) error=$((error+1))    ;;
+            *)             unknown=$((unknown+1)) ;;
         esac
 
         printf '%-20s  %-15s  %-16s  %-5s  ' \
@@ -176,5 +189,6 @@ cmd_list() {
     printf 'Total: %s  ' "$total"
     printf '\033[0;32m● %s active\033[0m  '   "$active"
     printf '\033[0;33m✗ %s no data\033[0m  '  "$nodata"
+    [ "$error" -gt 0 ] && printf '\033[0;31m✗ %s error\033[0m  ' "$error"
     printf '\033[0;90m? %s unknown\033[0m\n\n' "$unknown"
 }

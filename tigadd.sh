@@ -44,6 +44,8 @@ source "${LIB}/cmd/list.sh"
 source "${LIB}/cmd/remove.sh"
 # shellcheck source=lib/cmd/edit.sh
 source "${LIB}/cmd/edit.sh"
+# shellcheck source=lib/cmd/status.sh
+source "${LIB}/cmd/status.sh"
 
 # ── Usage ─────────────────────────────────────────────────────────────────
 usage_main() {
@@ -55,12 +57,14 @@ Commands:
   edit    Update an existing device (only pass flags you want to change)
   remove  Remove a monitored device by name
   list    List all monitored devices with InfluxDB status
+  status  Show health of Docker, InfluxDB, Telegraf, and Grafana
 
 Usage:
   ./tigadd.sh add    --type <type> --name <n> --ip <ip> --snmp-version <ver> [options]
   ./tigadd.sh edit   --name <n> [--ip <ip>] [--community <s>] [--interval <s>] ...
   ./tigadd.sh remove --name <n> [--output-dir <path>] [--force] [--no-reload]
   ./tigadd.sh list   [--output-dir <path>]
+  ./tigadd.sh status
 
 Device Types (add):
   switch / router / firewall   SNMPv2-MIB + IF-MIB
@@ -113,10 +117,10 @@ main() {
     # Determine command
     local cmd="add"   # default
     case "$1" in
-        add|list|remove|edit)  cmd="$1"; shift ;;
+        add|list|remove|edit|status)  cmd="$1"; shift ;;
         -h|--help)             usage_main ;;
         --*)                   cmd="add" ;;   # no command → treat all args as "add"
-        *)                     die "Unknown command: '$1'. Valid: add, edit, remove, list  (use --help)" ;;
+        *)                     die "Unknown command: '$1'. Valid: add, edit, remove, list, status  (use --help)" ;;
     esac
 
     # Parse remaining flags
@@ -152,6 +156,7 @@ main() {
         edit)   cmd_edit   ;;
         remove) cmd_remove ;;
         list)   cmd_list   ;;
+        status) cmd_status ;;
     esac
 }
 
