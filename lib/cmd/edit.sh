@@ -102,9 +102,11 @@ cmd_edit() {
         return
     fi
 
+    cp "$target" "${target}.bak"
     gen_config > "$target"
 
     printf '\n'; _green "✔ Config updated: $target"
+    log "Backup  : ${target}.bak"
     printf '\n'
     log "Device  : $DEVICE_NAME ($DEVICE_TYPE)"
     log "Target  : ${DEVICE_IP}:${SNMP_PORT}  (SNMP ${SNMP_VERSION})"
