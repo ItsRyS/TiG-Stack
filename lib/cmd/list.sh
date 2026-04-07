@@ -139,6 +139,7 @@ cmd_list() {
     # ── Phase 2: Launch all InfluxDB status checks in parallel ───────────────
     local tmp_dir
     tmp_dir=$(mktemp -d)
+    trap 'rm -rf "$tmp_dir"' EXIT INT TERM
     local i
     for i in "${!p_names[@]}"; do
         ( _check_influx_status "${p_names[$i]}" > "$tmp_dir/$i" ) &
@@ -168,6 +169,7 @@ cmd_list() {
         printf '\n'
     done
 
+    trap - EXIT INT TERM
     rm -rf "$tmp_dir"
 
     printf '%s\n' "──────────────────────────────────────────────────────────────────"
