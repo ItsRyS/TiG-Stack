@@ -11,3 +11,6 @@ influxdb/config/
 
 # Test framework (cloned separately)
 tests/bats/
+
+# Claude Code local settings
+.claude/settings.local.json
